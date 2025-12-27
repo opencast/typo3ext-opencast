@@ -121,7 +121,7 @@ class OpencastRenderer implements FileRendererInterface
         $configurationManager = GeneralUtility::makeInstance(ConfigurationManager::class);
         $fullTyposcript = $configurationManager->getConfiguration(ConfigurationManagerInterface::CONFIGURATION_TYPE_FULL_TYPOSCRIPT);
 
-        $typoscript = $fullTyposcript['plugin.']['tx_opencast.'];
+        $typoscript = $fullTyposcript['plugin.']['tx_opencast.'] ?? [];
 
         if (empty($typoscript)) {
             throw new \Exception('Can\'t find typoscript for EXT:opencast!');
