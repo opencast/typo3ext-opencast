@@ -154,6 +154,7 @@ class OpencastHelper extends AbstractOnlineMediaHelper
             $metadata['keywords'] = $data['keywords'] ?? '';
             if ($data['mediapackage'] ?? false) {
                 $metadata['duration'] = $data['mediapackage']['duration'] ?? 0;
+                $metadata['language'] = $data['mediapackage']['language'] ?? '';
             }
         } else {
             // Fallback: most basic information we've got!
