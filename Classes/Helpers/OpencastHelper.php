@@ -11,7 +11,9 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 class OpencastHelper extends AbstractOnlineMediaHelper
 {
+    protected $extension = 'opencast';
     protected string $host;
+    protected int $version;
 
     private const MEDIA_ID_PATTERN = '([0-9a-f\-]+)';
 
@@ -23,10 +25,14 @@ class OpencastHelper extends AbstractOnlineMediaHelper
 
     private static array $cache = [];
 
-    public function __construct(protected $extension)
+    public function __construct($extension)
     {
+        parent::__construct($extension);
+
         $this->host = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('opencast', 'host');
         $this->host = rtrim($this->host, '/') . '/';
+
+        $this->version = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('opencast', 'version') ?? 16;
     }
 
     /**
@@ -143,34 +149,18 @@ class OpencastHelper extends AbstractOnlineMediaHelper
 
     protected function fetchMetaData($mediaId): array
     {
-        $metadata = [];
-
         if ($data = $this->fetchJson($mediaId)) {
-            $metadata['title'] = $data['dcTitle'] ?? '';
-            $metadata['creator'] = $data['dcCreator'] ?? '';
-            $metadata['publisher'] = $data['dcPublisher'] ?? '';
-            $metadata['content_creation_date'] = strtotime($data['dcCreated'] ?? '');
-            $metadata['content_modification_date'] = strtotime($data['modified'] ?? '');
-            $metadata['keywords'] = $data['keywords'] ?? '';
-            if ($data['mediapackage'] ?? false) {
-                $metadata['duration'] = $data['mediapackage']['duration'] ?? 0;
-                $metadata['language'] = $data['mediapackage']['language'] ?? '';
-            }
+            return $data['metadata'];
         } else {
             // Fallback: most basic information we've got!
-            $metadata['title'] = $mediaId;
+            return ['title' => $mediaId];
         }
-
-        return $metadata;
     }
 
     protected function getAttachments($mediaId): ?array
     {
         if ($data = $this->fetchJson($mediaId)) {
-            if (isset($data['mediapackage']['attachments']['attachment']) &&
-                is_array($data['mediapackage']['attachments']['attachment'])) {
-                return $data['mediapackage']['attachments']['attachment'];
-            }
+            return $data['attachments'];
         }
 
         return null;
@@ -190,10 +180,57 @@ class OpencastHelper extends AbstractOnlineMediaHelper
                 $url = $this->host . 'search/episode.json?id=' . $mediaId;
                 if ($json = GeneralUtility::getUrl($url)) {
                     $json = json_decode($json, true);
-                    if (isset($json['search-results']['result']) &&
-                        is_array($json['search-results']['result'])) {
-                        self::$cache[$mediaId] = $json['search-results']['result'];
+
+                    $data = [
+                        'metadata' => [],
+                        'attachments' => [],
+                    ];
+
+                    if ($this->version < 16) {
+                        // Opencast legacy (Solr Search)
+                        if (isset($json['search-results']['result']) &&
+                            is_array($json['search-results']['result'])) {
+                            $legacyResult = $json['search-results']['result'];
+
+                            $data['metadata']['title'] = $legacyResult['dcTitle'] ?? '';
+                            $data['metadata']['creator'] = $legacyResult['dcCreator'] ?? '';
+                            $data['metadata']['publisher'] = $legacyResult['dcPublisher'] ?? '';
+                            $data['metadata']['content_creation_date'] = strtotime($legacyResult['dcCreated'] ?? '');
+                            $data['metadata']['content_modification_date'] = strtotime($legacyResult['modified'] ?? '');
+                            $data['metadata']['keywords'] = $legacyResult['keywords'] ?? '';
+                            if ($legacyResult['mediapackage'] ?? false) {
+                                $data['metadata']['duration'] = $legacyResult['mediapackage']['duration'] ?? 0;
+                            }
+
+                            if (isset($legacyResult['mediapackage']['attachments']['attachment']) &&
+                                is_array($legacyResult['mediapackage']['attachments']['attachment'])) {
+                                $data['attachments'] = $legacyResult['mediapackage']['attachments']['attachment'];
+                            }
+                        }
+                    } else {
+                        // Opencast 16+ (OpenSearch)
+                        if (isset($json['result'][0]) &&
+                            is_array($json['result'][0])) {
+                            $result = $json['result'][0];
+
+                            $data['metadata']['title'] = $result['dc']['title'][0] ?? '';
+                            $data['metadata']['creator'] = $result['dc']['creator'][0] ?? '';
+                            $data['metadata']['publisher'] = $result['dc']['publisher'][0] ?? '';
+                            $data['metadata']['content_creation_date'] = strtotime($result['dc']['created'][0] ?? '');
+                            $data['metadata']['content_modification_date'] = strtotime($result['modified'] ?? '');
+                            $data['metadata']['keywords'] = $result['keywords'] ?? '';
+                            if ($result['mediapackage'] ?? false) {
+                                $data['metadata']['duration'] = ($result['mediapackage']['duration'] ?? 0) / 1000;
+                            }
+
+                            if (isset($result['mediapackage']['attachments']['attachment']) &&
+                                is_array($result['mediapackage']['attachments']['attachment'])) {
+                                $data['attachments'] = $result['mediapackage']['attachments']['attachment'];
+                            }
+                        }
                     }
+
+                    self::$cache[$mediaId] = $data;
                 }
             }
 
