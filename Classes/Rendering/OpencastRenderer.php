@@ -1,4 +1,5 @@
 <?php
+
 namespace Uos\Opencast\Rendering;
 
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
@@ -11,15 +12,11 @@ use TYPO3\CMS\Core\Resource\Rendering\FileRendererInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManager;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Fluid\View\StandaloneView;
 
 class OpencastRenderer implements FileRendererInterface
 {
-    /**
-     * @var OnlineMediaHelperInterface
-     */
-    protected $onlineMediaHelper;
+    protected ?OnlineMediaHelperInterface $onlineMediaHelper = null;
 
     /**
      * Returns the priority of the renderer
@@ -50,7 +47,7 @@ class OpencastRenderer implements FileRendererInterface
      * Get online media helper
      *
      * @param FileInterface $file
-     * @return bool|OnlineMediaHelperInterface
+     * @return OnlineMediaHelperInterface|null
      */
     protected function getOnlineMediaHelper(FileInterface $file)
     {
@@ -61,8 +58,6 @@ class OpencastRenderer implements FileRendererInterface
             }
             if ($orgFile instanceof File) {
                 $this->onlineMediaHelper = GeneralUtility::makeInstance(OnlineMediaHelperRegistry::class)->getOnlineMediaHelper($orgFile);
-            } else {
-                $this->onlineMediaHelper = false;
             }
         }
         return $this->onlineMediaHelper;
@@ -75,14 +70,12 @@ class OpencastRenderer implements FileRendererInterface
      * @param int|string $width TYPO3 known format; examples: 220, 200m or 200c
      * @param int|string $height TYPO3 known format; examples: 220, 200m or 200c
      * @param array $options
-     * @param bool $usedPathsRelativeToCurrentScript See $file->getPublicUrl()
      * @return string
      */
-    public function render(FileInterface $file, $width, $height, array $options = [], $usedPathsRelativeToCurrentScript = false)
+    public function render(FileInterface $file, $width, $height, array $options = [])
     {
         if ($host = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('opencast', 'host')) {
             $mediaId = $this->getMediaIdFromFile($file);
-            $src = $host . 'play/' . $mediaId;
 
             try {
                 $typoscript = $this->getTypoScript();
@@ -93,9 +86,9 @@ class OpencastRenderer implements FileRendererInterface
             $view = $this->getView($typoscript, 'Opencast/Iframe');
 
             $view->assignMultiple([
-              'src'     => $src,
-              'host'    => $host,
-              'mediaId' => $mediaId,
+                'host' => $host,
+                'file' => $file,
+                'mediaId' => $mediaId,
             ]);
 
             return $view->render();
@@ -116,16 +109,19 @@ class OpencastRenderer implements FileRendererInterface
             $orgFile = $file;
         }
 
-        return $this->getOnlineMediaHelper($file)->getOnlineMediaId($orgFile);
+        if ($orgFile instanceof File) {
+            return $this->getOnlineMediaHelper($file)->getOnlineMediaId($orgFile);
+        }
+
+        return '';
     }
 
     protected function getTypoScript()
     {
-        $objectManager = GeneralUtility::makeInstance(ObjectManager::class);
-        $configurationManager = $objectManager->get(ConfigurationManager::class);
+        $configurationManager = GeneralUtility::makeInstance(ConfigurationManager::class);
         $fullTyposcript = $configurationManager->getConfiguration(ConfigurationManagerInterface::CONFIGURATION_TYPE_FULL_TYPOSCRIPT);
 
-        $typoscript = $fullTyposcript['plugin.']['tx_opencast.'];
+        $typoscript = $fullTyposcript['plugin.']['tx_opencast.'] ?? [];
 
         if (empty($typoscript)) {
             throw new \Exception('Can\'t find typoscript for EXT:opencast!');
@@ -136,9 +132,7 @@ class OpencastRenderer implements FileRendererInterface
 
     protected function getView($settings, $template = 'Opencast/Iframe')
     {
-        $objectManager = GeneralUtility::makeInstance(ObjectManager::class);
-        $view = $objectManager->get(StandaloneView::class);
-
+        $view = GeneralUtility::makeInstance(StandaloneView::class);
         $view->setLayoutRootPaths($settings['view.']['layoutRootPaths.'] ?? []);
         $view->setPartialRootPaths($settings['view.']['partialRootPaths.'] ?? []);
         $view->setTemplateRootPaths($settings['view.']['templateRootPaths.'] ?? []);
