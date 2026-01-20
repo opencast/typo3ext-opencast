@@ -1,2 +1,5 @@
 # cat=basic; type=string; label=URL of Opencast server: Starting with https and ending with a slash!
 host =
+
+# cat=basic; type=integer; label=Version of Opencast server: 16
+version = 16

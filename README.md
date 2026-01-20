@@ -5,7 +5,7 @@ This extension adds support for Opencast videos to TYPO3 10 & 11 LTS.
 ## Installation
 
 * Install extension via composer: `composer require uos/opencast`
-* Go into BE module 'settings' and set `host` parameter
+* Go into BE module 'settings' and set `host` and `version` parameter
 * Include static TypoScript `Opencast` into your main template (mandatory!)
 * Include static TypoScript `Opencast: IFrame CSS` (optional!)
 
