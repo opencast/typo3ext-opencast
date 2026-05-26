@@ -20,6 +20,8 @@ class OpencastHelper extends AbstractOnlineMediaHelper
     private const PATH_PATTERNS = [
         'paella\/ui\/watch\.html\?id=' . self::MEDIA_ID_PATTERN,
         'paella\/ui\/watch\.html\?cid=[0-9a-f]+&id=' . self::MEDIA_ID_PATTERN,
+        'paella7\/ui\/watch\.html\?id=' . self::MEDIA_ID_PATTERN,
+        'paella7\/ui\/watch\.html\?cid=[0-9a-f]+&id=' . self::MEDIA_ID_PATTERN,
         'play\/' . self::MEDIA_ID_PATTERN,
     ];
 
